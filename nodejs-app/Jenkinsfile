@@ -1,16 +1,26 @@
 def gv
-
+def IMAGE_NAME
 pipeline {
     agent any
     tools {
         nodejs "nodejs"
     }
+    
     stages {
         stage('init'){
             steps {
                 script {
                     gv = load "script.groovy"
                 }
+            }
+        }
+
+        stage('versioning') {
+            steps {
+               script{
+                   def tag = VersionNumber (versionNumberString: '${BUILD_DATE_FORMATTED, "yyyyMMdd"}-develop-${BUILDS_TODAY}')
+                   IMAGE_NAME="puram/tour:${tag}"
+               }
             }
         }
 
@@ -25,7 +35,7 @@ pipeline {
         stage('building-image'){
             steps {
                 script {
-                    gv.buildImage()
+                    gv.buildImage(IMAGE_NAME)
                 }
             }
         }
@@ -38,7 +48,7 @@ pipeline {
             }
             steps {
                 script {
-                    gv.deployApp()
+                    gv.deployApp(IMAGE_NAME)
                 }
             }
         }

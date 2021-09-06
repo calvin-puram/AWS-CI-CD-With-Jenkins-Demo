@@ -1,40 +1,52 @@
-def gv
+#!/usr/bin/env groovy
+
+library identifier: 'jenkins-shared-library@master', retriever: modernSCM(
+    [$class: 'GitSCMSource',
+     remote: 'https://gitlab.com/puram/jenkins-shared-library.git',
+     credentialsId: 'gitlab-credentials'
+    ]
+)
 
 pipeline {
     agent any
-    tools{
-        maven "maven"
+    tools {
+        maven 'Maven'
     }
-
+    environment {
+        IMAGE_NAME = 'medapp/demo-app:java-maven-2.0'
+    }
     stages {
-        stage('init'){
+        stage('build app') {
             steps {
-                script {
-                    gv = load "script.groovy"
-                }
-            }   
+               script {
+                  echo 'building application jar...'
+                  buildJar()
+               }
+            }
         }
-
-        stage('build-jar') {
+        stage('build image') {
             steps {
                 script {
-                    gv.buildJar()
+                   echo 'building docker image...'
+                   buildImage(env.IMAGE_NAME)
+                   dockerLogin()
+                   dockerPush(env.IMAGE_NAME)
                 }
             }
         }
-
-        stage('build-image'){
+        stage('deploy') {
             steps {
                 script {
-                    gv.buildImage()
-                }
-            }
-        }
+                   echo 'deploying docker image to EC2...'
 
-        stage('deploy'){
-            steps {
-                script{
-                    gv.deployApp()
+                   def shellCmd = "bash ./server-cmds.sh ${IMAGE_NAME}"
+                   def ec2Instance = "ec2-user@35.180.251.121"
+
+                   sshagent(['ec2-server-key']) {
+                       sh "scp server-cmds.sh ${ec2Instance}:/home/ec2-user"
+                       sh "scp docker-compose.yaml ${ec2Instance}:/home/ec2-user"
+                       sh "ssh -o StrictHostKeyChecking=no ${ec2Instance} ${shellCmd}"
+                   }
                 }
             }
         }
